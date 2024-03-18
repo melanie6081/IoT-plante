@@ -2,6 +2,11 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>  // Ajoutez cette ligne pour la gestion MQTT
 
+#include <DHT.h>
+#define DHTPIN D4
+// Definit le type de capteur utilise
+#define DHTTYPE DHT11
+
 const char* ssid = "Pixel Coline";           // Remplacez par le nom de votre réseau WiFi
 const char* password = "Raclette"; // Remplacez par le mot de passe de votre réseau WiFi
 const char* mqttServer = "maqiatto.com"; // Remplacez par l'adresse IP ou le nom du broker MQTT
@@ -10,7 +15,13 @@ const int mqttPort = 1883;  // Port MQTT par défaut
 const char* mqttUsername = "colineauber@yahoo.fr";  // Si nécessaire, sinon commentez cette ligne
 const char* mqttPassword = "plante";  // Si nécessaire, sinon commentez cette ligne
 
-const char* mqttTopic = "plante";  // Remplacez par le topic MQTT que vous souhaitez utiliser
+const char* mqttTopic = "colineauber@yahoo.fr/plante";  // Remplacez par le topic MQTT que vous souhaitez utiliser
+const char* mqttH = "colineauber@yahoo.fr/capteur/humidite";
+const char* mqttT = "colineauber@yahoo.fr/capteur/temperature";
+const char* mqttA = "colineauber@yahoo.fr/alerte";
+
+
+const int relais_pompe = D5; // // le relais est connecté à la broche 2 de la carte Adruino
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -18,15 +29,60 @@ PubSubClient client(espClient);
 int ledPin = 5;
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  // Traitement des messages MQTT entrants
-  Serial.print("Message reçu sur le topic: ");
-  Serial.println(topic);
 
-  Serial.print("Contenu du message: ");
+  int percentageHumididy;
+  float temp;
+  boolean alerte=false;
+
+  if(topic==mqttH){
+    for (int i = 0; i < length; i++) {
+      percentageHumididy=(int)payload[i];
+      Serial.print("Message reçu sur le topic: ");
+      Serial.println(topic);
+
+      Serial.print("Contenu du message: ");
+      Serial.print(percentageHumididy + " %");
+    }
+  }
+
+  if(topic==mqttT){
+    for (int i = 0; i < length; i++) {
+      temp=(float)payload[i];
+      Serial.print("Message reçu sur le topic: ");
+      Serial.println(topic);
+
+      Serial.print("Contenu du message: ");
+      Serial.print(temp);
+    }
+  }
+
+  if(topic==mqttA){
+    for (int i = 0; i < length; i++) {
+      alerte=(boolean)payload[i];
+      Serial.print("Message reçu sur le topic: ");
+      Serial.println(topic);
+
+      Serial.print("Contenu du message: ");
+      Serial.print(alerte);
+    }
+  }
+  
+  // Traitement des messages MQTT entrants
+  //Serial.print("Message reçu sur le topic: ");
+  //Serial.println(topic);
+
+  /**Serial.print("Contenu du message: ");
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
-  Serial.println();
+  Serial.println();**/
+
+  if(percentageHumididy <= 30 && alerte == false){
+    (relais_pompe, HIGH);
+    delay(5000); //5s
+    digitalWrite(relais_pompe, LOW);
+  }
+
 }
 
 void reconnect() {
@@ -36,7 +92,9 @@ void reconnect() {
     
     if (client.connect("ESP8266Client", mqttUsername, mqttPassword)) {
       Serial.println("Connecté au broker MQTT");
-      client.subscribe(mqttTopic);  // S'abonner au topic MQTT
+      client.subscribe(mqttH);
+      client.subscribe(mqttA);
+      client.subscribe(mqttT);
     } else {
       Serial.print("Échec, rc=");
       Serial.print(client.state());
@@ -45,6 +103,8 @@ void reconnect() {
     }
   }
 }
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -61,6 +121,8 @@ void setup() {
   Serial.println();
   Serial.print("Connecter");
 
+
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -75,16 +137,18 @@ void setup() {
 
   client.setServer(mqttServer, mqttPort);
   client.setCallback(callback);  // Définir la fonction de rappel pour le traitement des messages entrants
+
+  pinMode(relais_pompe, OUTPUT);
 }
 
 void loop() {
+  //digitalWrite(relais_pompe, HIGH);
+
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
 
-  // Envoyer une donnée au broker MQTT
-  client.publish(mqttTopic, "Hello, MQTT!");
-  
-  delay(1000);
+int sensorVal = analogRead(A0);
+
 }
