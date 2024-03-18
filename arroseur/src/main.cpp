@@ -3,6 +3,7 @@
 #include <PubSubClient.h>  // Ajoutez cette ligne pour la gestion MQTT
 
 #include <DHT.h>
+
 #define DHTPIN D4
 // Definit le type de capteur utilise
 #define DHTTYPE DHT11
@@ -21,7 +22,7 @@ const char* mqttT = "colineauber@yahoo.fr/capteur/temperature";
 const char* mqttA = "colineauber@yahoo.fr/alerte";
 
 
-const int relais_pompe = D5; // // le relais est connecté à la broche 2 de la carte Adruino
+const int relais_pompe = D2; // // le relais est connecté à la broche 2 de la carte Adruino
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -33,6 +34,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
   int percentageHumididy;
   float temp;
   boolean alerte=false;
+
+  Serial.println(String((char*) payload));
 
   if(topic==mqttH){
     for (int i = 0; i < length; i++) {
@@ -86,11 +89,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void reconnect() {
+
+  char mac[19]={0};
   // Fonction de reconnexion au broker MQTT
   while (!client.connected()) {
     Serial.print("Tentative de connexion MQTT...");
     
-    if (client.connect("ESP8266Client", mqttUsername, mqttPassword)) {
+    WiFi.macAddress().toCharArray(mac, 19);
+    if (client.connect(mac, mqttUsername, mqttPassword)) {
       Serial.println("Connecté au broker MQTT");
       client.subscribe(mqttH);
       client.subscribe(mqttA);
@@ -149,6 +155,6 @@ void loop() {
   }
   client.loop();
 
-int sensorVal = analogRead(A0);
+  delay(3000);
 
 }
