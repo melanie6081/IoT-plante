@@ -1,27 +1,28 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
-#include <PubSubClient.h>  // Ajoutez cette ligne pour la gestion MQTT
+#include <PubSubClient.h>  // Bibliothèque pour la gestion MQTT
 
 #include <DHT.h>
 
 #define DHTPIN D4
-// Definit le type de capteur utilise
+// Définition du type de capteur utilisé
 #define DHTTYPE DHT11
 
+// Paramètres WiFi
 const char* ssid = "Pixel Coline";           // Remplacez par le nom de votre réseau WiFi
-const char* password = "Raclette"; // Remplacez par le mot de passe de votre réseau WiFi
-const char* mqttServer = "maqiatto.com"; // Remplacez par l'adresse IP ou le nom du broker MQTT
-const int mqttPort = 1883;  // Port MQTT par défaut
+const char* password = "Raclette";           // Remplacez par le mot de passe de votre réseau WiFi
 
-const char* mqttUsername = "colineauber@yahoo.fr";  // Si nécessaire, sinon commentez cette ligne
-const char* mqttPassword = "plante";  // Si nécessaire, sinon commentez cette ligne
-
+// Paramètres MQTT
+const char* mqttServer = "maqiatto.com";     // Remplacez par l'adresse IP ou le nom du broker MQTT
+const int mqttPort = 1883;                   // Port MQTT par défaut
+const char* mqttUsername = "colineauber@yahoo.fr";  // Nom d'utilisateur MQTT
+const char* mqttPassword = "plante";                 // Mot de passe MQTT
 const char* mqttTopic = "colineauber@yahoo.fr/plante";  // Remplacez par le topic MQTT que vous souhaitez utiliser
-const char* mqttH = "colineauber@yahoo.fr/capteur/humidite";
-const char* mqttT = "colineauber@yahoo.fr/capteur/temperature";
-const char* mqttA = "colineauber@yahoo.fr/alerte";
+const char* mqttH = "colineauber@yahoo.fr/capteur/humidite"; // Topic MQTT pour l'humidité
+const char* mqttT = "colineauber@yahoo.fr/capteur/temperature"; // Topic MQTT pour la température
+const char* mqttA = "colineauber@yahoo.fr/capteur/alerte"; // Topic MQTT pour les alertes
 
-
+// Broche pour le relais de la pompe
 const int relais_pompe = D2; // // le relais est connecté à la broche 2 de la carte Adruino
 
 WiFiClient espClient;
@@ -29,67 +30,36 @@ PubSubClient client(espClient);
 
 int ledPin = 5;
 
+int percentageHumididy = 50; // Valeur par défaut pour l'humidité
+int temp = 20; // Valeur par défaut pour la température
+
 void callback(char* topic, byte* payload, unsigned int length) {
-
-  int percentageHumididy;
-  float temp;
-  boolean alerte=false;
-
-  Serial.println(String((char*) payload));
-
-  if(topic==mqttH){
-    for (int i = 0; i < length; i++) {
-      percentageHumididy=(int)payload[i];
-      Serial.print("Message reçu sur le topic: ");
-      Serial.println(topic);
-
-      Serial.print("Contenu du message: ");
-      Serial.print(percentageHumididy + " %");
-    }
-  }
-
-  if(topic==mqttT){
-    for (int i = 0; i < length; i++) {
-      temp=(float)payload[i];
-      Serial.print("Message reçu sur le topic: ");
-      Serial.println(topic);
-
-      Serial.print("Contenu du message: ");
-      Serial.print(temp);
-    }
-  }
-
-  if(topic==mqttA){
-    for (int i = 0; i < length; i++) {
-      alerte=(boolean)payload[i];
-      Serial.print("Message reçu sur le topic: ");
-      Serial.println(topic);
-
-      Serial.print("Contenu du message: ");
-      Serial.print(alerte);
-    }
-  }
-  
   // Traitement des messages MQTT entrants
-  //Serial.print("Message reçu sur le topic: ");
-  //Serial.println(topic);
+  String percentageHumididyString = String("");
+  String tempString = String("");
 
-  /**Serial.print("Contenu du message: ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();**/
-
-  if(percentageHumididy <= 30 && alerte == false){
-    (relais_pompe, HIGH);
-    delay(5000); //5s
-    digitalWrite(relais_pompe, LOW);
+  // Analyse des messages en fonction des topics
+  if(strcmp(topic, mqttH) == 0){
+    // Si le topic est pour l'humidité
+    for (int i = 0; i < length; i++) {
+      percentageHumididyString += (char)payload[i];
+    }
+    // Conversion de la valeur de l'humidité en entier
+    percentageHumididy = percentageHumididyString.toInt();
   }
 
+  if(strcmp(topic, mqttT) == 0){
+    // Si le topic est pour la température
+    for (int i = 0; i < length; i++) {
+      tempString += (char)payload[i];
+    }
+    // Conversion de la valeur de la température en entier
+    temp = tempString.toInt();
+  }
 }
 
 void reconnect() {
-
+    /* Code Mélanie
   char mac[19]={0};
   // Fonction de reconnexion au broker MQTT
   while (!client.connected()) {
@@ -108,9 +78,25 @@ void reconnect() {
       delay(5000);
     }
   }
+  */
+
+  // Fonction de reconnexion au broker MQTT
+  while (!client.connected()) {
+    Serial.print("Tentative de connexion MQTT...");
+    
+    if (client.connect("toto", mqttUsername, mqttPassword)) {
+      Serial.println("Connecté au broker MQTT");
+      client.subscribe(mqttH);
+      client.subscribe(mqttA);
+      client.subscribe(mqttT);
+    } else {
+      Serial.print("Échec, rc=");
+      Serial.print(client.state());
+      Serial.println(" Réessayez dans 5 secondes");
+      delay(5000);
+    }
+  }
 }
-
-
 
 void setup() {
   Serial.begin(115200);
@@ -127,8 +113,7 @@ void setup() {
   Serial.println();
   Serial.print("Connecter");
 
-
-
+  // Attente de connexion au réseau WiFi
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -148,13 +133,49 @@ void setup() {
 }
 
 void loop() {
-  //digitalWrite(relais_pompe, HIGH);
+  // Affichage des valeurs actuelles d'humidité et de température
+  Serial.print("L'humidité est de ");
+  Serial.print(percentageHumididy);
+  Serial.println(" %");
 
+  Serial.print("La température est de ");
+  Serial.print(temp);
+  Serial.println(" °C");
+
+  // Vérification de la connexion au broker MQTT
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
 
-  delay(3000);
+  bool alerte;
 
+  // Détermination de l'alerte en fonction de la température
+  if(temp > 32 || temp <= 0){
+    alerte = true;
+  }
+
+  if(temp < 32 || temp > 0){
+    alerte = false;
+  }
+
+  // Gestion des alertes en fonction de l'humidité et de la température
+  if(percentageHumididy <= 15 && alerte == true){
+    String message = "Alerte! La temperature est de: " + String(temp) + "°C, l'arrosage automatique a été annulé mais l'humidité est trop basse, elle est actuellement à: " + String(percentageHumididy) + "%";
+    client.publish(mqttA, message.c_str());
+  }
+
+  if(percentageHumididy > 70){
+    String message = "Alerte! Le taux d'humidité est trop élevé, il est actuellement à : " + String(percentageHumididy) + "%";
+    client.publish(mqttA, message.c_str());
+  }
+
+  if(percentageHumididy <= 30 && alerte == false){
+    digitalWrite(relais_pompe, HIGH);
+    delay(1000); //5s
+    digitalWrite(relais_pompe, LOW);
+  }
+
+  delay(3000);
 }
+
