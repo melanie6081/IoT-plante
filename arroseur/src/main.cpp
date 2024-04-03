@@ -35,6 +35,8 @@ int percentageHumidity = 50; // Valeur par défaut pour l'humidité
 int temp = 20; // Valeur par défaut pour la température
 int boutonEtat = 0;
 
+int time_1s = 0;
+
 void callback(char* topic, byte* payload, unsigned int length) {
   // Traitement des messages MQTT entrants
   String percentageHumidityString = String("");
@@ -142,6 +144,15 @@ void setup() {
 }
 
 void loop() {
+
+  // Vérification de la connexion au broker MQTT
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  if (millis() - time_1s > 1000){
+    time_1s = millis();
   // Affichage des valeurs actuelles d'humidité et de température
   Serial.print("L'humidité est de ");
   Serial.print(percentageHumidity);
@@ -153,12 +164,7 @@ void loop() {
 
   Serial.print("L'etat du bouton est à : ");
   Serial.println(boutonEtat);
-
-  // Vérification de la connexion au broker MQTT
-  if (!client.connected()) {
-    reconnect();
   }
-  client.loop();
 
   bool alerte;
 
@@ -189,6 +195,6 @@ void loop() {
     boutonEtat = 0;
   }
 
-  delay(30000);
+  delay(10);
 }
 
