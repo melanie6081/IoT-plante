@@ -21,6 +21,7 @@ const char* mqttTopic = "colineauber@yahoo.fr/plante";  // Remplacez par le topi
 const char* mqttH = "colineauber@yahoo.fr/capteur/humidite"; // Topic MQTT pour l'humidité
 const char* mqttT = "colineauber@yahoo.fr/capteur/temperature"; // Topic MQTT pour la température
 const char* mqttA = "colineauber@yahoo.fr/capteur/alerte"; // Topic MQTT pour les alertes
+const char* mqttB = "colineauber@yahoo.fr/bouton"; // Topic MQTT pour les alertes
 
 // Broche pour le relais de la pompe
 const int relais_pompe = D2; // // le relais est connecté à la broche 2 de la carte Adruino
@@ -30,22 +31,24 @@ PubSubClient client(espClient);
 
 int ledPin = 5;
 
-int percentageHumididy = 50; // Valeur par défaut pour l'humidité
+int percentageHumidity = 50; // Valeur par défaut pour l'humidité
 int temp = 20; // Valeur par défaut pour la température
+int boutonEtat = 0;
 
 void callback(char* topic, byte* payload, unsigned int length) {
   // Traitement des messages MQTT entrants
-  String percentageHumididyString = String("");
+  String percentageHumidityString = String("");
   String tempString = String("");
+  String boutonString = String("");
 
   // Analyse des messages en fonction des topics
   if(strcmp(topic, mqttH) == 0){
     // Si le topic est pour l'humidité
     for (int i = 0; i < length; i++) {
-      percentageHumididyString += (char)payload[i];
+      percentageHumidityString += (char)payload[i];
     }
     // Conversion de la valeur de l'humidité en entier
-    percentageHumididy = percentageHumididyString.toInt();
+    percentageHumidity = percentageHumidityString.toInt();
   }
 
   if(strcmp(topic, mqttT) == 0){
@@ -56,6 +59,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Conversion de la valeur de la température en entier
     temp = tempString.toInt();
   }
+  if(strcmp(topic, mqttB) == 0){
+    boutonString += (char)payload[0];
+  }
+  boutonEtat = boutonString.toInt();
+
 }
 
 void reconnect() {
@@ -89,6 +97,7 @@ void reconnect() {
       client.subscribe(mqttH);
       client.subscribe(mqttA);
       client.subscribe(mqttT);
+      client.subscribe(mqttB);
     } else {
       Serial.print("Échec, rc=");
       Serial.print(client.state());
@@ -135,12 +144,15 @@ void setup() {
 void loop() {
   // Affichage des valeurs actuelles d'humidité et de température
   Serial.print("L'humidité est de ");
-  Serial.print(percentageHumididy);
+  Serial.print(percentageHumidity);
   Serial.println(" %");
 
   Serial.print("La température est de ");
   Serial.print(temp);
   Serial.println(" °C");
+
+  Serial.print("L'etat du bouton est à : ");
+  Serial.println(boutonEtat);
 
   // Vérification de la connexion au broker MQTT
   if (!client.connected()) {
@@ -160,22 +172,23 @@ void loop() {
   }
 
   // Gestion des alertes en fonction de l'humidité et de la température
-  if(percentageHumididy <= 15 && alerte == true){
-    String message = "Alerte! La temperature est de: " + String(temp) + "°C, l'arrosage automatique a été annulé mais l'humidité est trop basse, elle est actuellement à: " + String(percentageHumididy) + "%";
+  if(percentageHumidity <= 15 && alerte == true){
+    String message = "Alerte! La temperature est de: " + String(temp) + "°C, l'arrosage automatique a été annulé mais l'humidité est trop basse, elle est actuellement à: " + String(percentageHumidity) + "%";
     client.publish(mqttA, message.c_str());
   }
 
-  if(percentageHumididy > 70){
-    String message = "Alerte! Le taux d'humidité est trop élevé, il est actuellement à : " + String(percentageHumididy) + "%";
+  if(percentageHumidity > 70){
+    String message = "Alerte! Le taux d'humidité est trop élevé, il est actuellement à : " + String(percentageHumidity) + "%";
     client.publish(mqttA, message.c_str());
   }
 
-  if(percentageHumididy <= 30 && alerte == false){
+  if(percentageHumidity <= 30 && alerte == false || boutonEtat == 1){
     digitalWrite(relais_pompe, HIGH);
-    delay(1000); //5s
+    delay(1000); //1s
     digitalWrite(relais_pompe, LOW);
+    boutonEtat = 0;
   }
 
-  delay(3000);
+  delay(30000);
 }
 
